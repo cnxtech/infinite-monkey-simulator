@@ -3,45 +3,42 @@ require 'sys/proctable'
 
 class VimInstance
 
-    # run vim using a pseudo-tty 
     def initialize
-        @master, slave = PTY.open
-        read, @write = IO.pipe
-        @pid = spawn("vim", :in=>read, :out=>slave)
-        read.close     # we dont need the read
-        slave.close    # or the slave
+
+	# create a pipe for vim's stdin
+        from_vim_input, @to_vim_input = IO.pipe
+
+	# ispawn vim as a child process, using the stdin/stdout pipes 
+        @pid = spawn("vim", :in=>from_vim_input, :out=>"/dev/null", :err=>"/dev/null")
+
+	# close our copy of vim's end of the pipe
+	from_vim_input.close
     end
 
-    def is_running
+    def is_running?
         !PTY::check(@pid, false)
     end
 
     def send_keystroke(char)
-        @write.puts char
+        @to_vim_input.puts char
     end
 
     # vim sometimes spawns a subprocess, which can block the simulation
-    def has_child
+    def has_child?
+	# filter the process table for process that have our pid as a parent
         @child = Sys::ProcTable.ps.select{ |pe| pe.ppid == @pid }
 	@child.any?
     end
 
     def terminate_child
+	# kill the first process found in the child process list
         %x[kill #{@child[0].pid}] 
         "killing vim's child process %s pid=%d" % [@child[0].cmdline, @child[0].pid]
     end
 
-    # read vim's output so it won't block
-    def read_output
-        begin
-            @master.read_nonblock(1)
-            rescue IO::WaitReadable
-        end
-    end
-
-    def close_pipes
-        @write.close
-        @master.close
+    def close_pipe
+	# close our end of the child process stdin pipe
+        @to_vim_input.close
     end
 
 end 
@@ -80,21 +77,22 @@ last_tick = start_tick
 monkeys = MonkeyWorker.new
 vim = VimInstance.new
 
-if vim.is_running
+if vim.is_running?
     puts "Vim is running."
 end
 
 loop do
-    vim.send_keystroke(monkeys.random_keystroke)
-    vim.read_output
-    if Time.now - last_tick > 1
-        puts "count=%d elapsed=%d" % [monkeys.counter, Time.now - start_tick]
-	last_tick = Time.now
-	if vim.has_child
-	    puts vim.terminate_child
-	end
-    end
-    if !vim.is_running
+    if vim.is_running?
+        vim.send_keystroke(monkeys.random_keystroke)
+        #vim.read_output
+        if Time.now - last_tick > 1
+            puts "count=%d elapsed=%d" % [monkeys.counter, Time.now - start_tick]
+	    last_tick = Time.now
+	    if vim.has_child?
+	        puts vim.terminate_child
+	    end
+       end
+    else
         puts "Vim has terminated."
         vim.close_pipes
         break
