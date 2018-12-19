@@ -8,7 +8,7 @@ class VimInstance
 	# create a pipe for vim's stdin
         from_vim_input, @to_vim_input = IO.pipe
 
-	# ispawn vim as a child process, using the stdin/stdout pipes 
+	# spawn vim as a child process, using the pipe for stdin
         @pid = spawn("vim", :in=>from_vim_input, :out=>"/dev/null", :err=>"/dev/null")
 
 	# close our copy of vim's end of the pipe
@@ -23,7 +23,7 @@ class VimInstance
         @to_vim_input.puts char
     end
 
-    # vim sometimes spawns a subprocess, which can block the simulation
+    # vim sometimes spawns a subprocess which can block the simulation
     def has_child?
 	# filter the process table for process that have our pid as a parent
         @child = Sys::ProcTable.ps.select{ |pe| pe.ppid == @pid }
@@ -45,10 +45,12 @@ end
 
 class MonkeyWorker
    # ASCII character range via http://www.december.com/html/spec/ascii.html
-   # and then converted to octal notation and left-padded
+   # and then converted to bytes
     def initialize
         @chars = (0..127).map{|c|c.chr}
+	# CTRL-Z causes shell job control suspension, suppress it
         @chars[26]=0.chr
+
         @memory = [nil] * 5 # initialize the empty array
         @counter = 0
     end
@@ -94,7 +96,7 @@ loop do
        end
     else
         puts "Vim has terminated."
-        vim.close_pipes
+        vim.close_pipe
         break
     end 
 end
