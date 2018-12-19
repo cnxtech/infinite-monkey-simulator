@@ -7,18 +7,15 @@ read.close     # we dont need the read
 slave.close    # or the slave
 
 if !PTY::check(pid, false)
-  p "vim is running"
+  puts "Vim is running."
 end 
 
 # send terminate sequence to vim through PTY
-#write.puts ":q\n"
-
-write.puts "[5>_\x17"
-puts "[5>_\x17"
+write.puts ":q\n"
 
 loop do
     if PTY::check(pid, false)
-        p "vim has terminated"
+        puts "Vim has terminated."
         break
     end 
 end
