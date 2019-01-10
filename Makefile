@@ -20,7 +20,7 @@ init:
 	terraform apply ${TERRAFORM_VARS}
 	touch .init_done
 
-ssh: _init_done
+ssh: .init_done
 	ssh ${SSH_OPTS} -i ${SSH_KEY} ${SSH_USER}@$$(terraform output ip)
 
 clean: 
