@@ -88,7 +88,7 @@ loop do
         vim.send_keystroke(monkeys.random_keystroke)
         #vim.read_output
         if Time.now - last_tick > 1
-            puts "count=%d elapsed=%d" % [monkeys.counter, Time.now - start_tick]
+            print "count=%d elapsed=%s\r" % [monkeys.counter, Time.at(Time.now - start_tick).utc.strftime("%H:%M:%S")]
 	    last_tick = Time.now
 	    if vim.has_child?
 	        puts vim.terminate_child
@@ -101,5 +101,6 @@ loop do
     end 
 end
 
-puts "It took %d keystrokes to exit vim after %d seconds. The winning exit combo was: %s" % [monkeys.counter, Time.now - start_tick, monkeys.memory]
+puts "It took %d keystrokes to exit vim after %s" % [monkeys.counter, Time.at(Time.now - start_tick).utc.strftime("%H:%M:%S")]
+puts "The winning exit combo was: %s" % [monkeys.memory]
 
