@@ -2,7 +2,13 @@ require 'sys/proctable'
 
 MEMORY_LEN = 16
 
-TRIGGER = 4
+# set trigger to force generation of the exit sequence for testing
+TRIGGER = 0
+
+LIMIT_TOTAL = 0
+LIMIT_CPS = 128
+LIMIT_TIMEOUT = 0
+LIMIT_SLEEP = 0.001
 
 class VimInstance
 
@@ -30,7 +36,7 @@ class VimInstance
     end
 
     def send_keystroke(char)
-	STDERR.puts "sending %s" % char
+	#STDERR.puts "sending %s" % char
 	# return number of keys sent
 	ret = 0
 	# if the pipe is open, send the key
@@ -43,8 +49,9 @@ class VimInstance
 	        @key_count += 1
 	        ret = 1
 	    rescue Errno::EPIPE
-	        STDERR.puts "\nError EPIPE after %s keys" % @key_count	
+	        STDERR.puts "\nError: EPIPE after %s keys" % @key_count	
 	        close_pipe
+		exit -3
 	    end
 	end
 	ret
@@ -71,6 +78,10 @@ class VimInstance
 
     def elapsed
         Time.at(Time.now - @start_tick).utc.strftime("%H:%M:%S")
+    end
+
+    def elapsed_seconds
+	Time.now - @start_tick
     end
 
     def count
@@ -101,9 +112,9 @@ class MonkeyWorker
 	    char = ":"
 	elsif TRIGGER>0 and @count==TRIGGER+2
 	    char = "q"
-	elsif TRIGGER>0 and @COUNT==TRIGGER+3
-            char = "A"
-	elsif TRIGGER>0 and @COUNT==TRIGGER+4
+	elsif TRIGGER>0 and @count==TRIGGER+3
+            char = "!"
+	elsif TRIGGER>0 and @count==TRIGGER+4
             char = 13.chr
 	elsif
 	# select one of the chars at random
@@ -130,7 +141,8 @@ else
     seed = Random.new_seed
 end
 
-STDERR.puts("Seed=%f" % seed)
+STDERR.puts("Seed=%d" % seed)
+puts("Seed=%d" % seed)
 srand(seed)
 
 monkeys = MonkeyWorker.new
@@ -140,23 +152,26 @@ if vim.is_running?
     STDERR.puts "Vim is running."
 end
 
+sleep(1)
+
 next_status = Time.now + 1
 cps = 0
-cps_limit = 1024
-total_limit = 12
 
 while vim.is_running?
 
     # send a random key to the vim process
-    if cps < cps_limit
+    if (LIMIT_CPS==0 or cps<LIMIT_CPS) and (LIMIT_TOTAL==0 or vim.count<LIMIT_TOTAL)
         cps += vim.send_keystroke(monkeys.random_keystroke)
     end
 
-    if vim.count > total_limit 
-        break
+    if LIMIT_TOTAL>0 and vim.count>=LIMIT_TOTAL
+        STDERR.puts "\nError: Limit exceeded at %d keystrokes" % vim.count
+	exit -2
     end
 
-    sleep(0.001)
+    if LIMIT_SLEEP > 0
+        sleep(LIMIT_SLEEP)
+    end
 
     if Time.now > next_status
 	    STDERR.print "%s %d %d     \r" % [vim.elapsed, vim.count, cps]
@@ -166,12 +181,18 @@ while vim.is_running?
 	while vim.has_child?
 	    puts vim.terminate_child
 	end
+
+	if LIMIT_TIMEOUT>0 and vim.elapsed_seconds>LIMIT_TIMEOUT
+	    STDERR.puts "\nError: Timeout after %d keystrokes" % vim.count
+	    exit -1
+	end
     end
 end
 
-
-puts "Vim has terminated."
+STDERR.puts "\nSuccess! Vim has terminated."
 vim.close_pipe
 
 STDERR.puts "It took %d keystrokes to exit vim after %s" % [vim.count, vim.elapsed]
 STDERR.puts "The winning exit combo was: %s" % [monkeys.memory]
+
+exit 0
