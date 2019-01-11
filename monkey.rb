@@ -14,15 +14,17 @@
 
 require 'sys/proctable'
 
-MEMORY_LEN = 16
+# configure control variables with defaults, allowing environment overrides
+MEMORY_LEN = Integer(ENV.fetch('IMS_MEMORY_LEN', 16))
 
 # set trigger to force generation of the exit sequence for testing
-TRIGGER = 0
+TRIGGER = Integer(ENV.fetch('IMS_TRIGGER', 0))
 
-LIMIT_TOTAL = 0
-LIMIT_CPS = 128 
-LIMIT_TIMEOUT = 60
-LIMIT_SLEEP = 0.001
+LIMIT_TOTAL = Integer(ENV.fetch('IMS_LIMIT_TOTAL', 0))
+LIMIT_CPS = Integer(ENV.fetch('IMS_LIMIT_CPS', 128))
+LIMIT_TIMEOUT = Integer(ENV.fetch('IMS_LIMIT_TIMEOUT', 0))
+LIMIT_SLEEP = Float(ENV.fetch('IMS_LIMIT_SLEEP', 0.25))
+SEED = Integer(ENV.fetch('IMS_SEED', Random.new_seed))
 
 # VimInstance encapsulates the vim process
 class VimInstance
@@ -38,8 +40,8 @@ class VimInstance
     @pid = spawn(
       'vim',
       :in  => from_vim_input,
-      :out => '/dev/null',
-      :err => '/dev/null'
+      :out => 'vim.out',
+      :err => 'vim.err'
     )
 
     # close our copy of vim's end of the pipe
@@ -120,7 +122,7 @@ class MonkeyWorker
   def random_keystroke
     @count += 1
     # spoof the generation of the vim exit sequence for testing
-    if TRIGGER.positive? && @count >= TRIGGER && @count - TRIGGER < @tchars.length
+    if !TRIGGER.zero? && @count >= TRIGGER && @count - TRIGGER < @tchars.length
       char = @tchars[@count - TRIGGER]
     else
       char = @chars.sample(1).first
@@ -135,15 +137,10 @@ class MonkeyWorker
   end
 end
 
-if ARGV.empty?
-  seed = Random.new_seed
-else
-  seed = Integer(ARGV[0])
-end
 
-puts format('Seed=%<seed>d', seed: seed)
-open('seed', 'w') { |f| f.puts format('%<seed>d', seed: seed) }
-srand(seed)
+puts format('Seed=%<seed>d', seed: SEED)
+open('seed', 'w') { |f| f.puts format('%<seed>d', seed: SEED) }
+srand(SEED)
 
 monkeys = MonkeyWorker.new
 vim = VimInstance.new
@@ -163,7 +160,7 @@ while vim.running?
     cps += 1
   end
 
-  if LIMIT_TOTAL.positive? && vim.count >= LIMIT_TOTAL
+  if !LIMIT_TOTAL.zero? && vim.count >= LIMIT_TOTAL
     puts format(
       "\nError: Limit exceeded at %<count>d keystrokes",
       count: vim.count
@@ -172,7 +169,7 @@ while vim.running?
     exit(-2)
   end
 
-  sleep(LIMIT_SLEEP) if LIMIT_SLEEP.positive?
+  sleep(LIMIT_SLEEP) if !LIMIT_SLEEP.zero?
 
   next if Time.now < next_status
 
@@ -187,7 +184,7 @@ while vim.running?
 
   puts vim.terminate_child while vim.child?
 
-  if LIMIT_TIMEOUT.positive? && vim.elapsed_seconds >= LIMIT_TIMEOUT
+  if !LIMIT_TIMEOUT.zero? && vim.elapsed_seconds >= LIMIT_TIMEOUT
     puts format(
       "\nError: Timeout after %<count>d keystrokes",
       count: vim.count
