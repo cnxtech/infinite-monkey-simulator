@@ -128,30 +128,23 @@ if vim.is_running?
     STDERR.puts "Vim is running."
 end
 
-last_tick = Time.now
-last_count = 0
-
-while vim.is_running?
-
-    # send a random key to the vim process
-    vim.send_keystroke(monkeys.random_keystroke)
-    #vim.send_keystroke(monkeys.next_keystroke)
-    sleep(0.0001)
-
-    if Time.now - last_tick > 1
-	last_tick += 1
-	STDERR.print "%s %d %d     \r" % [vim.elapsed, monkeys.counter, monkeys.counter - last_count]
-	last_count = monkeys.counter
-
-        # if vim has spawned a subshell, kill it
-        if vim.has_child?
-            STDERR.puts vim.terminate_child
-        end
-    end
+loop do
+    if vim.is_running?
+        vim.send_keystroke(monkeys.random_keystroke)
+        #vim.read_output
+        if Time.now - last_tick > 1
+            print "count=%d elapsed=%s\r" % [monkeys.counter, Time.at(Time.now - start_tick).utc.strftime("%H:%M:%S")]
+	    last_tick = Time.now
+	    if vim.has_child?
+	        puts vim.terminate_child
+	    end
+       end
+    else
+        puts "Vim has terminated."
+        vim.close_pipe
+        break
+    end 
 end
-
-STDERR.puts "Vim has terminated."
-vim.close_pipe
 
 STDERR.puts "It took %d keystrokes to exit vim after %s" % [monkeys.counter, vim.elapsed]
 STDERR.puts "The winning exit combo was: %s" % [monkeys.memory]
