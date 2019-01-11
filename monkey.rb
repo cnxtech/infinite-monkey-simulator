@@ -2,12 +2,15 @@ require 'sys/proctable'
 
 MEMORY_LEN = 16
 
+TRIGGER = 4
+
 class VimInstance
 
     def initialize
 
 	# save startup time for elapsed time calculation
 	@start_tick = Time.now
+        @key_count = 0
 
 	# create a pipe for vim's stdin
         from_vim_input, @to_vim_input = IO.pipe
@@ -27,12 +30,24 @@ class VimInstance
     end
 
     def send_keystroke(char)
-        begin
-	    print char
-            @to_vim_input.print char
-	#rescue Errno::EPIPE
-	#    STDERR.puts "pipe error."	
+	STDERR.puts "sending %s" % char
+	# return number of keys sent
+	ret = 0
+	# if the pipe is open, send the key
+        if !@closed	
+	    begin
+	        # print the key to STDOUT
+	        print char
+	        # send it to vim
+                @to_vim_input.print char
+	        @key_count += 1
+	        ret = 1
+	    rescue Errno::EPIPE
+	        STDERR.puts "\nError EPIPE after %s keys" % @key_count	
+	        close_pipe
+	    end
 	end
+	ret
     end
 
     # vim sometimes spawns a subprocess which can block the simulation
@@ -58,6 +73,10 @@ class VimInstance
         Time.at(Time.now - @start_tick).utc.strftime("%H:%M:%S")
     end
 
+    def count
+        @key_count
+    end
+
 end 
 
 class MonkeyWorker
@@ -65,28 +84,31 @@ class MonkeyWorker
    # and then converted to bytes
     def initialize
 
-
+	@count = 0
         @chars = (0..127).map{|c|c.chr}
 	# CTRL-Z causes shell job control suspension, suppress it
         @chars[26]=0.chr
 
         @memory = [nil] * MEMORY_LEN # initialize the empty array
-        @counter = 0
 
-	@kill_chars = [':', 'q', 10.chr]
-
-    end
-
-    def next_keystroke
-        char = @kill_chars[@counter]
-        @counter += 1
-        char	
     end
 
     def random_keystroke
-        @counter += 1
+	@count += 1
+	if TRIGGER>0 and @count==TRIGGER  
+	    char = 27.chr
+	elsif TRIGGER>0 and @count==TRIGGER+1
+	    char = ":"
+	elsif TRIGGER>0 and @count==TRIGGER+2
+	    char = "q"
+	elsif TRIGGER>0 and @COUNT==TRIGGER+3
+            char = "A"
+	elsif TRIGGER>0 and @COUNT==TRIGGER+4
+            char = 13.chr
+	elsif
 	# select one of the chars at random
-        char = @chars.sample(1).first
+            char = @chars.sample(1).first
+	end
         # Let's keep track of the characters we sent, but no more than the last 5
         @memory << char
         @memory = @memory[-MEMORY_LEN..-1]
@@ -97,25 +119,15 @@ class MonkeyWorker
         @memory
     end  
 
-    def counter
-        @counter
-    end
-
-    def seed
-	@seed
-    end
-
 end
 
 
-STDERR.puts("len=%d ARGV=%s" % [ARGV.length, ARGV])
-
 if ARGV.length > 0
-    seed = ARGV[0].to_i
-    STDERR.puts("command line seed = %f" % seed)
+    # if a seed is passed as an argument, use it
+    seed = Integer(ARGV[0])
 else
+    # otherwise generate a new random seed
     seed = Random.new_seed
-    STDERR.puts("random seed = %f" % seed)
 end
 
 STDERR.puts("Seed=%f" % seed)
@@ -128,23 +140,38 @@ if vim.is_running?
     STDERR.puts "Vim is running."
 end
 
-loop do
-    if vim.is_running?
-        vim.send_keystroke(monkeys.random_keystroke)
-        #vim.read_output
-        if Time.now - last_tick > 1
-            print "count=%d elapsed=%s\r" % [monkeys.counter, Time.at(Time.now - start_tick).utc.strftime("%H:%M:%S")]
-	    last_tick = Time.now
-	    if vim.has_child?
-	        puts vim.terminate_child
-	    end
-       end
-    else
-        puts "Vim has terminated."
-        vim.close_pipe
+next_status = Time.now + 1
+cps = 0
+cps_limit = 1024
+total_limit = 12
+
+while vim.is_running?
+
+    # send a random key to the vim process
+    if cps < cps_limit
+        cps += vim.send_keystroke(monkeys.random_keystroke)
+    end
+
+    if vim.count > total_limit 
         break
-    end 
+    end
+
+    sleep(0.001)
+
+    if Time.now > next_status
+	    STDERR.print "%s %d %d     \r" % [vim.elapsed, vim.count, cps]
+	cps = 0
+	next_status += 1
+
+	while vim.has_child?
+	    puts vim.terminate_child
+	end
+    end
 end
 
-STDERR.puts "It took %d keystrokes to exit vim after %s" % [monkeys.counter, vim.elapsed]
+
+puts "Vim has terminated."
+vim.close_pipe
+
+STDERR.puts "It took %d keystrokes to exit vim after %s" % [vim.count, vim.elapsed]
 STDERR.puts "The winning exit combo was: %s" % [monkeys.memory]
