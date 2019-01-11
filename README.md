@@ -17,5 +17,5 @@ hexdump -e '/1 "%_u "'
 
 ### interesting seed
 This seed terminated after 28 seconds, but only if 85 <= CPS <= 128
-`168479952374726667841537733610769828254`
+168479952374726667841537733610769828254
 

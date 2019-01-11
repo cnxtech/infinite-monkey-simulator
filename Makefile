@@ -47,7 +47,7 @@ loop:
 	  TEMP=$$(mktemp -d);\
   	  echo Running in $$TEMP;\
        	  cd $$TEMP;\
-	  ruby 2>errs $$DIR/monkey.rb); do \
+	  ruby 2>err $$DIR/monkey.rb); do \
 	    echo "Retrying"; \
 	  done;
 	sns-publish "A monkey terminated vim: ${LAST_DIR}"

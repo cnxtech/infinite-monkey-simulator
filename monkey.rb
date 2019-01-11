@@ -23,7 +23,7 @@ TRIGGER = Integer(ENV.fetch('IMS_TRIGGER', 0))
 LIMIT_TOTAL = Integer(ENV.fetch('IMS_LIMIT_TOTAL', 0))
 LIMIT_CPS = Integer(ENV.fetch('IMS_LIMIT_CPS', 128))
 LIMIT_TIMEOUT = Integer(ENV.fetch('IMS_LIMIT_TIMEOUT', 0))
-LIMIT_SLEEP = Float(ENV.fetch('IMS_LIMIT_SLEEP', 0.25))
+LIMIT_SLEEP = Float(ENV.fetch('IMS_LIMIT_SLEEP', 0.0001))
 SEED = Integer(ENV.fetch('IMS_SEED', Random.new_seed))
 
 # VimInstance encapsulates the vim process
