@@ -59,5 +59,5 @@ lastseed:
 	@cat ${LAST_DIR}/seed
 
 lastkeys:
-	@cat ${LAST_DIR}/keys | hexdump -e '/1 "%_u "'
+	@cat ${LAST_DIR}/keys | hexdump -v -e '/1 "%_u "'
 

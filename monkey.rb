@@ -20,6 +20,9 @@ MEMORY_LEN = Integer(ENV.fetch('IMS_MEMORY_LEN', 16))
 # set trigger to force generation of the exit sequence for testing
 TRIGGER = Integer(ENV.fetch('IMS_TRIGGER', 0))
 
+# look for child processes under vim and kill them
+AUTOKILL = Integer(ENV.fetch('IMS_AUTOKILL', 0))
+
 LIMIT_TOTAL = Integer(ENV.fetch('IMS_LIMIT_TOTAL', 0))
 LIMIT_CPS = Integer(ENV.fetch('IMS_LIMIT_CPS', 128))
 LIMIT_TIMEOUT = Integer(ENV.fetch('IMS_LIMIT_TIMEOUT', 0))
@@ -182,7 +185,9 @@ while vim.running?
   cps = 0
   next_status += 1
 
-  puts vim.terminate_child while vim.child?
+  if !AUTOKILL.zero? 
+    puts vim.terminate_child while vim.child? 
+  end
 
   if !LIMIT_TIMEOUT.zero? && vim.elapsed_seconds >= LIMIT_TIMEOUT
     puts format(
