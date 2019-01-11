@@ -36,7 +36,7 @@ run:
 	TEMP=$$(mktemp -d);\
 	echo Running in $$TEMP;\
        	cd $$TEMP;\
-	ruby >out $$DIR/monkey.rb ${SEED}
+	ruby 2>errs $$DIR/monkey.rb ${SEED}
 
 loop:
 	@DIR=$$(pwd);\
@@ -44,9 +44,9 @@ loop:
 	  TEMP=$$(mktemp -d);\
   	  echo Running in $$TEMP;\
        	  cd $$TEMP;\
-	  ruby >out 2>log $$DIR/monkey.rb ${SEED}); do \
+	  ruby 2>errs $$DIR/monkey.rb ${SEED}); do \
 	    echo "Retrying"; \
 	  done;
 	TEMP=$$(ls -dt /tmp/tmp.* | head -1) ;\
-	  SEED=$$(grep ^Seed= $$TEMP/log) ;\
+	  SEED=$$(cat $$TEMP/seed) ;\
 	  sns-publish "vim terminated $${TEMP} $${SEED}"

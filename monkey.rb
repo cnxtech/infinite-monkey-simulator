@@ -1,3 +1,17 @@
+#!/usr/bin/ruby -w
+
+# frozen_string_literal: true
+
+#----------------------------------------------------------------------------
+#
+# Infinite Monkey Simulator
+#
+# Starts a vim process, then sends it random keystrokes until it terminates
+#
+# https://github.com/rstms/infinite-monkey-simulator
+#
+#----------------------------------------------------------------------------
+
 require 'sys/proctable'
 
 MEMORY_LEN = 16
@@ -6,193 +20,194 @@ MEMORY_LEN = 16
 TRIGGER = 0
 
 LIMIT_TOTAL = 0
-LIMIT_CPS = 128
-LIMIT_TIMEOUT = 0
+LIMIT_CPS = 128 
+LIMIT_TIMEOUT = 60
 LIMIT_SLEEP = 0.001
 
+# VimInstance encapsulates the vim process
 class VimInstance
+  def initialize
+    # save startup time for elapsed time calculation
+    @start_tick = Time.now
+    @key_count = 0
 
-    def initialize
+    # create a pipe for vim's stdin
+    from_vim_input, @to_vim_input = IO.pipe
 
-	# save startup time for elapsed time calculation
-	@start_tick = Time.now
-        @key_count = 0
+    # spawn vim as a child process, using the pipe for stdin
+    @pid = spawn(
+      'vim',
+      :in  => from_vim_input,
+      :out => '/dev/null',
+      :err => '/dev/null'
+    )
 
-	# create a pipe for vim's stdin
-        from_vim_input, @to_vim_input = IO.pipe
+    # close our copy of vim's end of the pipe
+    from_vim_input.close
 
-	# spawn vim as a child process, using the pipe for stdin
-        @pid = spawn("vim", :in=>from_vim_input, :out=>"/dev/null", :err=>"/dev/null")
+    @output = open('./keys', 'w')
+  end
 
-	# close our copy of vim's end of the pipe
-	from_vim_input.close
+  def running?
+    # waitpid returns nil if no child exit code is available
+    !Process.waitpid(@pid, Process::WNOHANG)
+  end
 
-	@closed = false
+  def send_keystroke(char)
+    begin
+      @output.print char         # write to the keys file
+      @to_vim_input.print char   # send it to vim
+      @key_count += 1
+    rescue Errno::EPIPE
+      puts format(
+        "\nError: EPIPE after %<count>s keys",
+        count: @key_count
+      )
+      close_pipe
+      exit(-3)
     end
+  end
 
-    def is_running?
-        # waitpid returns nil if no child exit code is available
-        !Process.waitpid(@pid, Process::WNOHANG)
-    end
+  # vim sometimes spawns a subprocess which can block the simulation
+  def child?
+    # filter the process table for process that have our pid as a parent
+    @child = Sys::ProcTable.ps.select { |pe| pe.ppid == @pid }
+    @child.any?
+  end
 
-    def send_keystroke(char)
-	#STDERR.puts "sending %s" % char
-	# return number of keys sent
-	ret = 0
-	# if the pipe is open, send the key
-        if !@closed	
-	    begin
-	        # print the key to STDOUT
-	        print char
-	        # send it to vim
-                @to_vim_input.print char
-	        @key_count += 1
-	        ret = 1
-	    rescue Errno::EPIPE
-	        STDERR.puts "\nError: EPIPE after %s keys" % @key_count	
-	        close_pipe
-		exit -3
-	    end
-	end
-	ret
-    end
+  def terminate_child
+    # kill the first process found in the child process list
+    Process.kill('TERM', @child[0].pid)
+    format(
+      "killing vim's child process %<cmd>s pid=%<pid>d",
+      cmd: @child[0].cmdline,
+      pid: @child[0].pid
+    )
+  end
 
-    # vim sometimes spawns a subprocess which can block the simulation
-    def has_child?
-	# filter the process table for process that have our pid as a parent
-        @child = Sys::ProcTable.ps.select{ |pe| pe.ppid == @pid }
-	@child.any?
-    end
+  def close_pipe
+    # close our end of the child process stdin pipe
+    @to_vim_input.close
+    @output.close
+  end
 
-    def terminate_child
-	# kill the first process found in the child process list
-        %x[kill #{@child[0].pid}] 
-        "killing vim's child process %s pid=%d" % [@child[0].cmdline, @child[0].pid]
-    end
+  def elapsed
+    Time.at(Time.now - @start_tick).utc.strftime('%H:%M:%S')
+  end
 
-    def close_pipe
-	# close our end of the child process stdin pipe
-        @to_vim_input.close
-	@closed = true
-    end
+  def elapsed_seconds
+    Time.now - @start_tick
+  end
 
-    def elapsed
-        Time.at(Time.now - @start_tick).utc.strftime("%H:%M:%S")
-    end
+  def count
+    @key_count
+  end
+end
 
-    def elapsed_seconds
-	Time.now - @start_tick
-    end
-
-    def count
-        @key_count
-    end
-
-end 
-
+# MonkeyWorker is the monkey typing random keys into vim
 class MonkeyWorker
-   # ASCII character range via http://www.december.com/html/spec/ascii.html
-   # and then converted to bytes
-    def initialize
+  def initialize
+    @count = 0
+    # set up an array of ASCII character codes 0-127
+    @chars = (0..127).map { |c| c.chr }
+    # CTRL-Z causes shell job control suspension, suppress it
+    @chars[26] = 0.chr
+    @memory = [nil] * MEMORY_LEN # initialize the empty array
 
-	@count = 0
-        @chars = (0..127).map{|c|c.chr}
-	# CTRL-Z causes shell job control suspension, suppress it
-        @chars[26]=0.chr
+    @tchars = [27.chr, ':', 'q', '!', 13.chr]
+  end
 
-        @memory = [nil] * MEMORY_LEN # initialize the empty array
-
+  def random_keystroke
+    @count += 1
+    # spoof the generation of the vim exit sequence for testing
+    if TRIGGER.positive? && @count >= TRIGGER && @count - TRIGGER < @tchars.length
+      char = @tchars[@count - TRIGGER]
+    else
+      char = @chars.sample(1).first
     end
+    @memory << char
+    @memory = @memory[-MEMORY_LEN..-1]
+    char
+  end
 
-    def random_keystroke
-	@count += 1
-	if TRIGGER>0 and @count==TRIGGER  
-	    char = 27.chr
-	elsif TRIGGER>0 and @count==TRIGGER+1
-	    char = ":"
-	elsif TRIGGER>0 and @count==TRIGGER+2
-	    char = "q"
-	elsif TRIGGER>0 and @count==TRIGGER+3
-            char = "!"
-	elsif TRIGGER>0 and @count==TRIGGER+4
-            char = 13.chr
-	elsif
-	# select one of the chars at random
-            char = @chars.sample(1).first
-	end
-        # Let's keep track of the characters we sent, but no more than the last 5
-        @memory << char
-        @memory = @memory[-MEMORY_LEN..-1]
-	char
-    end
-
-    def memory
-        @memory
-    end  
-
+  def memory
+    @memory
+  end
 end
 
-
-if ARGV.length > 0
-    # if a seed is passed as an argument, use it
-    seed = Integer(ARGV[0])
+if ARGV.empty?
+  seed = Random.new_seed
 else
-    # otherwise generate a new random seed
-    seed = Random.new_seed
+  seed = Integer(ARGV[0])
 end
 
-STDERR.puts("Seed=%d" % seed)
-puts("Seed=%d" % seed)
+puts format('Seed=%<seed>d', seed: seed)
+open('seed', 'w') { |f| f.puts format('%<seed>d', seed: seed) }
 srand(seed)
 
 monkeys = MonkeyWorker.new
 vim = VimInstance.new
 
-if vim.is_running?
-    STDERR.puts "Vim is running."
-end
+puts 'Vim is running.' if vim.running?
 
 sleep(1)
 
 next_status = Time.now + 1
 cps = 0
 
-while vim.is_running?
+while vim.running?
 
-    # send a random key to the vim process
-    if (LIMIT_CPS==0 or cps<LIMIT_CPS) and (LIMIT_TOTAL==0 or vim.count<LIMIT_TOTAL)
-        cps += vim.send_keystroke(monkeys.random_keystroke)
-    end
+  if (LIMIT_CPS.zero? || cps < LIMIT_CPS) \
+      && (LIMIT_TOTAL.zero? || vim.count < LIMIT_TOTAL)
+    vim.send_keystroke(monkeys.random_keystroke)
+    cps += 1
+  end
 
-    if LIMIT_TOTAL>0 and vim.count>=LIMIT_TOTAL
-        STDERR.puts "\nError: Limit exceeded at %d keystrokes" % vim.count
-	exit -2
-    end
+  if LIMIT_TOTAL.positive? && vim.count >= LIMIT_TOTAL
+    puts format(
+      "\nError: Limit exceeded at %<count>d keystrokes",
+      count: vim.count
+    )
+    vim.close_pipe
+    exit(-2)
+  end
 
-    if LIMIT_SLEEP > 0
-        sleep(LIMIT_SLEEP)
-    end
+  sleep(LIMIT_SLEEP) if LIMIT_SLEEP.positive?
 
-    if Time.now > next_status
-	    STDERR.print "%s %d %d     \r" % [vim.elapsed, vim.count, cps]
-	cps = 0
-	next_status += 1
+  next if Time.now < next_status
 
-	while vim.has_child?
-	    puts vim.terminate_child
-	end
+  print format(
+    "%<elapsed>s %<count>d %<cps>d     \r",
+    elapsed: vim.elapsed,
+    count: vim.count,
+    cps: cps
+  )
+  cps = 0
+  next_status += 1
 
-	if LIMIT_TIMEOUT>0 and vim.elapsed_seconds>LIMIT_TIMEOUT
-	    STDERR.puts "\nError: Timeout after %d keystrokes" % vim.count
-	    exit -1
-	end
-    end
+  puts vim.terminate_child while vim.child?
+
+  if LIMIT_TIMEOUT.positive? && vim.elapsed_seconds >= LIMIT_TIMEOUT
+    puts format(
+      "\nError: Timeout after %<count>d keystrokes",
+      count: vim.count
+    )
+    vim.close_pipe
+    exit(-1)
+  end
 end
 
-STDERR.puts "\nSuccess! Vim has terminated."
+puts "\nSuccess! Vim has terminated."
 vim.close_pipe
 
-STDERR.puts "It took %d keystrokes to exit vim after %s" % [vim.count, vim.elapsed]
-STDERR.puts "The winning exit combo was: %s" % [monkeys.memory]
+puts format(
+  'It took %<count>d keystrokes to exit vim after %<elapsed>s',
+  count: vim.count,
+  elapsed: vim.elapsed
+)
+puts format(
+  'The winning exit combo was: %<memory>s',
+  memory: monkeys.memory
+)
 
 exit 0
