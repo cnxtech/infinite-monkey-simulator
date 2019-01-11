@@ -8,6 +8,7 @@ provider "aws" {
 resource "aws_instance" "monkey" {
   ami           = "ami-03c652d3a09856345"
   instance_type = "t1.micro"
+  iam_instance_profile = "monkey"
   key_name      = "monkey"
   tags = {
     Name = "monkey"

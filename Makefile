@@ -2,7 +2,6 @@
 
 .PHONY: usage init ssh clean 
 
-
 SSH_KEY := ${HOME}/.ssh/monkey.pem
 SSH_OPTS := -o StrictHostKeyChecking=no 
 SSH_USER := ec2-user
@@ -27,3 +26,10 @@ clean:
 	terraform destroy ${TERRAFORM_VARS}
 	rm -f terraform.tfstate*
 	rm -f .init_done
+
+run:
+	@DIR=$$(pwd);\
+	TEMP=$$(mktemp -d);\
+	echo Running in $$TEMP;\
+       	cd $$TEMP;\
+	ruby >out $$DIR/monkey.rb ${SEED}
