@@ -4,7 +4,7 @@ There exists a delightful [short story](http://kasmana.people.cofc.edu/MATHFICT/
 
 BEEN A LONG, LONG TIME
 
-R. A. LAFFERTY 
+[R. A. LAFFERTY](https://ralafferty.com/)
 
 You’ve heard the one about the monkeys, the typewriter, and 
 the complete works of Shakespeare? So did Michael . . . but he 
