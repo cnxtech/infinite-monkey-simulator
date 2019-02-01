@@ -11,3 +11,10 @@ the complete works of Shakespeare? So did Michael . . . but he
 set out to prove it—! 
 
 [The full text is archived here](https://archive.org/stream/Fantastic_v20n02_1970-12/Fantastic_v20n02_1970-12_djvu.txt)
+
+
+## Article
+
+David R. Tribble wrote [an excellent article about the infinite monkeys conjecture](http://david.tribble.com/text/monkeys.html)
+
+
