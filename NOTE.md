@@ -1,9 +1,9 @@
 ## Literary Note
 
-There exists a delightful [short story](http://kasmana.people.cofc.edu/MATHFICT/mfview.php?callnumber=mf464) about this concept, originally printed in Fantastic Stories, and reprinted in the 
-anthology [Galactic Empires, edited by Brian Aldiss](http://brianaldiss.co.uk/writing/edited-by-brian/edited-by-a-m/galactic-empires/)
+There exists a delightful [short story](http://kasmana.people.cofc.edu/MATHFICT/mfview.php?callnumber=mf464) which was originally published in 1970 in Fantastic Stories, and later reprinted in the anthology [Galactic Empires, edited by Brian Aldiss](http://brianaldiss.co.uk/writing/edited-by-brian/edited-by-a-m/galactic-empires/)
 
 BEEN A LONG, LONG TIME
+
 R. A. LAFFERTY 
 
 You’ve heard the one about the monkeys, the typewriter, and 
